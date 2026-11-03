@@ -1,6 +1,6 @@
 {
-  "name": "Reparto On Time",
-  "short_name": "Reparto",
+  "name": "Control de rutas de reparto",
+  "short_name": "Control Rutas",
   "description": "Control mensual de paquetes y gastos de las rutas Segorbe y Vinaròs",
   "start_url": "./",
   "scope": "./",
