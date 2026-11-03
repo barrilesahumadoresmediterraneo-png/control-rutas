@@ -300,9 +300,10 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
 // ---------- RESUMEN ----------
 function stats(rid){
   const R=regs.filter(x=>x.ruta_id===rid), G=gastos.filter(x=>x.ruta_id===rid), ru=rutaById(rid);
-  const s={paq:0,dev:0,rec:0,dias:0,km:0,ing:0,gas:0,fuel:0,mant:0,otros:0,lit:0};
+  const s={paq:0,dev:0,rec:0,dias:0,km:0,ing:0,sup:0,gas:0,fuel:0,mant:0,otros:0,lit:0};
   R.forEach(x=>{s.paq+=x.paquetes;s.dev+=x.devueltos;s.rec+=x.recogidas;s.dias+=x.dias;s.km+=Number(x.km||0);
-    s.ing+= ru.modo_pago==='paquete' ? x.paquetes*x.tarifa : x.dias*x.tarifa;});
+    const sp=x.dias*Number(x.suplemento||0); s.sup+=sp;
+    s.ing+= (ru.modo_pago==='paquete' ? x.paquetes*x.tarifa : x.dias*x.tarifa) + sp;});
   G.forEach(x=>{const v=Number(x.importe);s.gas+=v;s.lit+=Number(x.litros||0);
     if(x.categoria==='combustible')s.fuel+=v;else if(x.categoria==='mantenimiento')s.mant+=v;else s.otros+=v;});
   s.ben=s.ing-s.gas; return s;
@@ -312,7 +313,7 @@ function renderResumen(y0){
   $('#routeCards').innerHTML=rutas.map(r=>{
     const s=stats(r.id); all.paq+=s.paq;all.ing+=s.ing;all.gas+=s.gas;all.ben+=s.ben;
     const exito=(s.paq+s.dev)?Math.round(s.paq/(s.paq+s.dev)*100):null;
-    const pago=r.modo_pago==='paquete'?`${eur(r.tarifa)} / paquete`:`${eur(r.tarifa)} / día`;
+    const pago=(r.modo_pago==='paquete'?`${eur(r.tarifa)} / paquete`:`${eur(r.tarifa)} / día`)+(Number(r.suplemento_dia)>0?` + ${eur(r.suplemento_dia)} / día combustible`:'');
     return `<div class="card">
       <h2><span class="dot" style="background:${colorOf(r)}"></span>${esc(r.nombre)}</h2>
       <div class="sub">${esc(r.encargado||'')} · ${pago}${r.tarifa==0?' <span class="tag">falta tarifa</span>':''}</div>
@@ -324,6 +325,7 @@ function renderResumen(y0){
       </div>
       <div class="rows">
         <div class="row"><span>Ingresos On Time</span><span>${eur(s.ing)}</span></div>
+        ${s.sup?`<div class="row"><span class="sub">↳ incluye complemento combustible</span><span class="sub">${eur(s.sup)}</span></div>`:''}
         <div class="row"><span>⛽ Combustible${s.lit?` (${num(s.lit)} L)`:''}</span><span>${neg(s.fuel)}</span></div>
         <div class="row"><span>🔧 Mantenimiento</span><span>${neg(s.mant)}</span></div>
         <div class="row"><span>Otros gastos</span><span>${neg(s.otros)}</span></div>
@@ -355,7 +357,7 @@ function renderResumen(y0){
      :`<tr><td colspan="9" class="empty">Aún no hay datos</td></tr>`);
 }
 $('#btnCsv').onclick=()=>{
-  const h=['mes','ruta','encargado','paquetes','devueltos','recogidas','dias','ingresos','combustible','mantenimiento','otros','gastos','beneficio','coste_por_paquete','litros','km'];
+  const h=['mes','ruta','encargado','paquetes','devueltos','recogidas','dias','ingresos','complemento','combustible','mantenimiento','otros','gastos','beneficio','coste_por_paquete','litros','km'];
   const lines=[h.join(';')].concat(resumen.map(x=>h.map(k=>{let v=x[k]??'';if(typeof v==='number')v=String(v).replace('.',',');return `"${String(v).replace(/"/g,'""')}"`}).join(';')));
   const blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='reparto_historico.csv';a.click();
@@ -387,7 +389,7 @@ $('#fPaq').onsubmit=async e=>{
     notas:$('#pNotas').value.trim()||null};
   if(!row.fecha) return toast('Pon la fecha');
   if(!id){
-    row.tarifa=r.tarifa;
+    row.tarifa=r.tarifa; row.suplemento=Number(r.suplemento_dia)||0;
     if(pTipo==='dia' && regs.some(x=>x.ruta_id===r.id&&x.tipo==='dia'&&x.fecha===row.fecha) && !confirm('Ya hay un registro de '+r.nombre+' para ese día. ¿Añadir otro igualmente?')) return;
   }
   const q= id? sb.from('reparto_registros').update(row).eq('id',id) : sb.from('reparto_registros').insert(row);
@@ -455,13 +457,15 @@ function renderRutas(){
         <option value="dia" ${r.modo_pago==='dia'?'selected':''}>Fijo por día</option></select></div>
       <div><label>Tarifa (€)</label><input name="tarifa" type="number" step="0.01" min="0" inputmode="decimal" value="${r.tarifa}"></div>
     </div>
-    <div class="hint">Al cambiar la tarifa, se aplica a los registros nuevos y a los que aún no tenían tarifa (0 €).</div>
+    <label>Complemento de combustible (€ por día)</label><input name="suplemento_dia" type="number" step="0.01" min="0" inputmode="decimal" value="${r.suplemento_dia||0}" placeholder="0">
+    <div class="hint">Al cambiar la tarifa o el complemento, se aplica a los registros nuevos y a los que aún lo tenían a 0 €. El complemento se suma por cada día trabajado.</div>
     <button class="btn">Guardar ruta</button></form>`).join('');
   document.querySelectorAll('#rutaForms form').forEach(f=>f.onsubmit=async e=>{
     e.preventDefault(); const fd=new FormData(f), id=f.dataset.id;
-    const row={encargado:fd.get('encargado'),zona:fd.get('zona'),modo_pago:fd.get('modo_pago'),tarifa:+fd.get('tarifa')||0};
+    const row={encargado:fd.get('encargado'),zona:fd.get('zona'),modo_pago:fd.get('modo_pago'),tarifa:+fd.get('tarifa')||0,suplemento_dia:+fd.get('suplemento_dia')||0};
     const {error}=await sb.from('reparto_rutas').update(row).eq('id',id); if(error) return fail(error);
     if(row.tarifa>0){const {error:e2}=await sb.from('reparto_registros').update({tarifa:row.tarifa}).eq('ruta_id',id).eq('tarifa',0); if(e2) return fail(e2);}
+    if(row.suplemento_dia>0){const {error:e3}=await sb.from('reparto_registros').update({suplemento:row.suplemento_dia}).eq('ruta_id',id).eq('suplemento',0); if(e3) return fail(e3);}
     toast('Ruta guardada ✓'); await loadRutas(); loadMonth();
   });
 }
