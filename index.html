@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reparto On Time</title>
+<meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --bg:#f4f6f5; --card:#fff; --ink:#14201d; --muted:#5f6f6a; --line:#e2e8e6;
+  --brand:#0f766e; --brand-ink:#fff; --soft:#e6f3f1;
+  --seg:#0f766e; --vin:#c2410c; --ok:#15803d; --bad:#b91c1c;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0e1513;--card:#17211e;--ink:#e8efed;--muted:#94a7a1;--line:#26332f;--soft:#14302b;--seg:#2dd4bf;--vin:#fb923c;--ok:#4ade80;--bad:#f87171}
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+.hidden{display:none!important}
+header{position:sticky;top:0;z-index:5;background:var(--brand);color:var(--brand-ink);padding:calc(10px + env(safe-area-inset-top)) 16px 10px}
+.top{display:flex;align-items:center;gap:10px;max-width:1100px;margin:0 auto}
+.top h1{font-size:16px;line-height:1.2;margin:0;flex:1;letter-spacing:.2px}
+.month{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.14);border-radius:999px;padding:2px}
+.month button{background:none;border:0;color:#fff;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:18px}
+.month span{min-width:118px;text-align:center;font-weight:600}
+.ghost{background:none;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:999px;padding:6px 12px;cursor:pointer}
+nav{display:flex;gap:4px;max-width:1100px;margin:8px auto 0;overflow-x:auto}
+nav button{flex:1;background:none;border:0;color:rgba(255,255,255,.75);padding:8px 10px;border-radius:10px;cursor:pointer;font-weight:600;white-space:nowrap}
+nav button.on{background:rgba(255,255,255,.18);color:#fff}
+main{max-width:1100px;margin:0 auto;padding:16px 16px 90px}
+.grid{display:grid;gap:14px}
+@media(min-width:760px){.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.card h2{font-size:16px;margin:0 0 2px;display:flex;align-items:center;gap:8px}
+.sub{color:var(--muted);font-size:13px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}
+.kpi{background:var(--soft);border-radius:10px;padding:10px 12px}
+.kpi b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.kpi small{color:var(--muted)}
+.rows{margin-top:12px;border-top:1px solid var(--line)}
+.row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.row.tot{font-weight:700;border-bottom:0}
+.pos{color:var(--ok)}.neg{color:var(--bad)}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+textarea{min-height:60px;resize:vertical}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:none;padding:8px;border-radius:8px;cursor:pointer;color:var(--muted);font-weight:600}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--brand);color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer;width:100%;margin-top:14px}
+.btn.sec{background:var(--soft);color:var(--ink)}
+.btn.sm{width:auto;padding:8px 12px;margin:0;font-size:13px}
+.list .it{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.list .it:last-child{border-bottom:0}
+.it .m{flex:1;min-width:0}
+.it .t{font-weight:600}
+.it .v{font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+.ic{border:0;background:none;color:var(--muted);cursor:pointer;padding:6px;border-radius:8px;font-size:16px}
+.ic:hover{background:var(--soft)}
+.tag{font-size:11px;padding:2px 7px;border-radius:999px;background:var(--soft);color:var(--muted);margin-left:6px;font-weight:600}
+.empty{color:var(--muted);text-align:center;padding:18px 0}
+.bars{display:flex;align-items:flex-end;gap:6px;height:150px;margin-top:14px;padding-bottom:22px;position:relative}
+.bar{flex:1;display:flex;gap:2px;align-items:flex-end;height:100%;position:relative}
+.bar i{flex:1;border-radius:4px 4px 0 0;min-height:2px}
+.bar em{position:absolute;bottom:-20px;left:0;right:0;text-align:center;font-style:normal;font-size:11px;color:var(--muted);text-transform:capitalize}
+.legend{display:flex;gap:14px;font-size:13px;color:var(--muted);margin-top:6px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:600;font-size:12px}
+.scroll{overflow-x:auto}
+#login{min-height:100vh;display:grid;place-items:center;padding:16px}
+#login .card{width:100%;max-width:380px}
+.logo{width:56px;height:56px;border-radius:14px;margin-bottom:10px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;z-index:20;opacity:0;transition:.25s;pointer-events:none}
+.toast.show{opacity:1}
+.err{color:var(--bad);font-size:13px;margin-top:8px}
+.hint{font-size:12px;color:var(--muted);margin-top:4px}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<section id="login" class="hidden">
+  <div class="card">
+    <img src="icon.svg" class="logo" alt="">
+    <h2 style="margin:0">Reparto On Time</h2>
+    <div class="sub">Control de rutas Segorbe y Vinaròs</div>
+    <form id="fLogin">
+      <label>Email</label><input id="lEmail" type="email" required autocomplete="username">
+      <label>Contraseña</label><input id="lPass" type="password" required autocomplete="current-password">
+      <button class="btn">Entrar</button>
+      <div id="lErr" class="err"></div>
+    </form>
+  </div>
+</section>
+
+<!-- APP -->
+<section id="app" class="hidden">
+<header>
+  <div class="top">
+    <h1>Reparto On Time</h1>
+    <div class="month"><button id="mPrev" aria-label="Mes anterior">‹</button><span id="mLabel"></span><button id="mNext" aria-label="Mes siguiente">›</button></div>
+  </div>
+  <nav>
+    <button data-tab="resumen" class="on">Resumen</button>
+    <button data-tab="paquetes">Paquetes</button>
+    <button data-tab="gastos">Gastos</button>
+    <button data-tab="rutas">Rutas</button>
+  </nav>
+</header>
+
+<main>
+  <!-- RESUMEN -->
+  <div id="t-resumen" class="tab">
+    <div class="grid g2" id="routeCards"></div>
+    <div class="card" style="margin-top:14px" id="totalCard"></div>
+    <div class="card" style="margin-top:14px">
+      <h2>Paquetes últimos 12 meses</h2>
+      <div class="legend" id="legend"></div>
+      <div class="bars" id="bars"></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h2>Histórico mes a mes</h2>
+      <div class="scroll"><table id="hist"></table></div>
+      <button class="btn sec" id="btnCsv">Descargar Excel (CSV) del histórico</button>
+    </div>
+  </div>
+
+  <!-- PAQUETES -->
+  <div id="t-paquetes" class="tab hidden">
+    <div class="grid g2">
+      <div class="card">
+        <h2 id="pTitle">Apuntar paquetes</h2>
+        <form id="fPaq">
+          <input type="hidden" id="pId">
+          <label>Ruta</label><select id="pRuta"></select>
+          <label>¿Qué vas a apuntar?</label>
+          <div class="seg" id="pTipo"><button type="button" data-v="dia" class="on">Un día</button><button type="button" data-v="mes">Total del mes</button></div>
+          <div id="pFechaBox"><label>Fecha</label><input type="date" id="pFecha"></div>
+          <div id="pMesBox" class="hidden"><label>Mes</label><input type="month" id="pMes"></div>
+          <div class="two">
+            <div><label>Paquetes entregados</label><input type="number" id="pPaq" min="0" inputmode="numeric" required></div>
+            <div><label>Devueltos / ausentes</label><input type="number" id="pDev" min="0" inputmode="numeric" value="0"></div>
+          </div>
+          <div class="two">
+            <div><label>Recogidas</label><input type="number" id="pRec" min="0" inputmode="numeric" value="0"></div>
+            <div id="pDiasBox" class="hidden"><label>Días trabajados</label><input type="number" id="pDias" min="0" inputmode="numeric" value="1"></div>
+            <div id="pKmBox"><label>Km del día</label><input type="number" id="pKm" min="0" step="0.1" inputmode="decimal"></div>
+          </div>
+          <label>Notas</label><textarea id="pNotas"></textarea>
+          <div class="hint" id="pHint"></div>
+          <button class="btn" id="pSave">Guardar</button>
+          <button type="button" class="btn sec hidden" id="pCancel">Cancelar edición</button>
+        </form>
+      </div>
+      <div class="card"><h2>Registros del mes</h2><div class="list" id="pList"></div></div>
+    </div>
+  </div>
+
+  <!-- GASTOS -->
+  <div id="t-gastos" class="tab hidden">
+    <div class="grid g2">
+      <div class="card">
+        <h2 id="gTitle">Apuntar gasto</h2>
+        <form id="fGas">
+          <input type="hidden" id="gId">
+          <label>Ruta</label><select id="gRuta"></select>
+          <div class="two">
+            <div><label>Fecha</label><input type="date" id="gFecha" required></div>
+            <div><label>Categoría</label>
+              <select id="gCat">
+                <option value="combustible">⛽ Combustible</option>
+                <option value="mantenimiento">🔧 Mantenimiento</option>
+                <option value="peajes">🛣️ Peajes / parking</option>
+                <option value="seguro">🛡️ Seguro / ITV</option>
+                <option value="multas">🚨 Multas</option>
+                <option value="sueldos">👤 Sueldos</option>
+                <option value="otros">📦 Otros</option>
+              </select></div>
+          </div>
+          <label>Importe (€)</label><input type="number" id="gImp" min="0" step="0.01" inputmode="decimal" required>
+          <div class="two" id="gFuelBox">
+            <div><label>Litros</label><input type="number" id="gLit" min="0" step="0.01" inputmode="decimal"></div>
+            <div><label>Km del cuentakilómetros</label><input type="number" id="gKm" min="0" step="0.1" inputmode="decimal"></div>
+          </div>
+          <label>Concepto</label><input id="gCon" placeholder="Ej.: cambio de aceite, Repsol Segorbe…">
+          <button class="btn" id="gSave">Guardar</button>
+          <button type="button" class="btn sec hidden" id="gCancel">Cancelar edición</button>
+        </form>
+      </div>
+      <div class="card"><h2>Gastos del mes</h2><div class="list" id="gList"></div></div>
+    </div>
+  </div>
+
+  <!-- RUTAS -->
+  <div id="t-rutas" class="tab hidden">
+    <div class="grid g2" id="rutaForms"></div>
+    <div class="card" style="margin-top:14px">
+      <h2>Cuenta</h2>
+      <div class="sub" id="who"></div>
+      <button class="btn sec" id="btnOut">Cerrar sesión</button>
+    </div>
+  </div>
+</main>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://vppjcwtpuqjpvzmyddjf.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_prkLN1v-eiAoSXvUuY16XA_E0ukHBlf';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = s => document.querySelector(s);
+const eur = n => (Number(n)||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
+const neg = n => Number(n) ? '-'+eur(n) : eur(0);
+const num = n => (Number(n)||0).toLocaleString('es-ES');
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pad = n => String(n).padStart(2,'0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const CAT = {combustible:'⛽ Combustible',mantenimiento:'🔧 Mantenimiento',peajes:'🛣️ Peajes / parking',seguro:'🛡️ Seguro / ITV',multas:'🚨 Multas',sueldos:'👤 Sueldos',otros:'📦 Otros'};
+
+let rutas=[], cur=new Date(), regs=[], gastos=[], resumen=[], user=null;
+cur.setDate(1);
+const monthStart = () => ymd(new Date(cur.getFullYear(),cur.getMonth(),1));
+const monthEnd = () => ymd(new Date(cur.getFullYear(),cur.getMonth()+1,0));
+const colorOf = r => r.modo_pago==='dia' ? 'var(--vin)' : 'var(--seg)';
+const rutaById = id => rutas.find(r=>r.id===id)||{};
+
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('show'),2200)}
+function fail(e){console.error(e);toast('Error: '+(e.message||e))}
+
+// ---------- AUTH ----------
+async function init(){
+  const {data:{session}} = await sb.auth.getSession();
+  session ? start(session.user) : showLogin();
+  sb.auth.onAuthStateChange((ev,s)=>{ if(ev==='SIGNED_OUT') showLogin(); });
+}
+function showLogin(){$('#app').classList.add('hidden');$('#login').classList.remove('hidden')}
+$('#fLogin').onsubmit = async e=>{
+  e.preventDefault(); $('#lErr').textContent='';
+  const {data,error} = await sb.auth.signInWithPassword({email:$('#lEmail').value.trim(),password:$('#lPass').value});
+  if(error){$('#lErr').textContent='Email o contraseña incorrectos';return}
+  start(data.user);
+};
+$('#btnOut').onclick = ()=>sb.auth.signOut();
+
+async function start(u){
+  user=u; $('#who').textContent='Conectado como '+u.email;
+  $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+  await loadRutas(); await loadMonth();
+}
+
+// ---------- DATA ----------
+async function loadRutas(){
+  const {data,error}=await sb.from('reparto_rutas').select('*').eq('activa',true).order('orden');
+  if(error) return fail(error);
+  rutas=data;
+  const opts=rutas.map(r=>`<option value="${r.id}">${esc(r.nombre)} · ${esc(r.encargado||'')}</option>`).join('');
+  $('#pRuta').innerHTML=opts; $('#gRuta').innerHTML=opts;
+  renderRutas(); syncPaqForm();
+}
+async function loadMonth(){
+  {const t=cur.toLocaleDateString('es-ES',{month:'long',year:'numeric'});$('#mLabel').textContent=t[0].toUpperCase()+t.slice(1);}
+  const a=monthStart(), b=monthEnd();
+  const y0=new Date(cur.getFullYear(),cur.getMonth()-11,1);
+  const [r1,r2,r3]=await Promise.all([
+    sb.from('reparto_registros').select('*').gte('fecha',a).lte('fecha',b).order('fecha',{ascending:false}),
+    sb.from('reparto_gastos').select('*').gte('fecha',a).lte('fecha',b).order('fecha',{ascending:false}),
+    sb.from('reparto_resumen_mensual').select('*').order('mes',{ascending:false})
+  ]);
+  for(const r of [r1,r2,r3]) if(r.error) return fail(r.error);
+  regs=r1.data; gastos=r2.data; resumen=r3.data;
+  renderResumen(y0); renderPaq(); renderGas();
+  // defaults de fecha dentro del mes elegido
+  const today=new Date(); const inMonth=today.getFullYear()===cur.getFullYear()&&today.getMonth()===cur.getMonth();
+  const def=inMonth?ymd(today):a;
+  if(!$('#pId').value){$('#pFecha').value=def;$('#pMes').value=a.slice(0,7)}
+  if(!$('#gId').value){$('#gFecha').value=def}
+}
+$('#mPrev').onclick=()=>{cur.setMonth(cur.getMonth()-1);loadMonth()};
+$('#mNext').onclick=()=>{cur.setMonth(cur.getMonth()+1);loadMonth()};
+
+// ---------- TABS ----------
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('hidden',t.id!=='t-'+b.dataset.tab));
+  window.scrollTo(0,0);
+});
+
+// ---------- RESUMEN ----------
+function stats(rid){
+  const R=regs.filter(x=>x.ruta_id===rid), G=gastos.filter(x=>x.ruta_id===rid), ru=rutaById(rid);
+  const s={paq:0,dev:0,rec:0,dias:0,km:0,ing:0,gas:0,fuel:0,mant:0,otros:0,lit:0};
+  R.forEach(x=>{s.paq+=x.paquetes;s.dev+=x.devueltos;s.rec+=x.recogidas;s.dias+=x.dias;s.km+=Number(x.km||0);
+    s.ing+= ru.modo_pago==='paquete' ? x.paquetes*x.tarifa : x.dias*x.tarifa;});
+  G.forEach(x=>{const v=Number(x.importe);s.gas+=v;s.lit+=Number(x.litros||0);
+    if(x.categoria==='combustible')s.fuel+=v;else if(x.categoria==='mantenimiento')s.mant+=v;else s.otros+=v;});
+  s.ben=s.ing-s.gas; return s;
+}
+function renderResumen(y0){
+  const all={paq:0,ing:0,gas:0,ben:0,dias:0};
+  $('#routeCards').innerHTML=rutas.map(r=>{
+    const s=stats(r.id); all.paq+=s.paq;all.ing+=s.ing;all.gas+=s.gas;all.ben+=s.ben;
+    const exito=(s.paq+s.dev)?Math.round(s.paq/(s.paq+s.dev)*100):null;
+    const pago=r.modo_pago==='paquete'?`${eur(r.tarifa)} / paquete`:`${eur(r.tarifa)} / día`;
+    return `<div class="card">
+      <h2><span class="dot" style="background:${colorOf(r)}"></span>${esc(r.nombre)}</h2>
+      <div class="sub">${esc(r.encargado||'')} · ${pago}${r.tarifa==0?' <span class="tag">falta tarifa</span>':''}</div>
+      <div class="kpis">
+        <div class="kpi"><small>Paquetes</small><b>${num(s.paq)}</b></div>
+        <div class="kpi"><small>Días trabajados</small><b>${num(s.dias)}</b></div>
+        <div class="kpi"><small>Beneficio</small><b class="${s.ben>=0?'pos':'neg'}">${eur(s.ben)}</b></div>
+        <div class="kpi"><small>Coste por paquete</small><b>${s.paq?eur(s.gas/s.paq):'—'}</b></div>
+      </div>
+      <div class="rows">
+        <div class="row"><span>Ingresos On Time</span><span>${eur(s.ing)}</span></div>
+        <div class="row"><span>⛽ Combustible${s.lit?` (${num(s.lit)} L)`:''}</span><span>${neg(s.fuel)}</span></div>
+        <div class="row"><span>🔧 Mantenimiento</span><span>${neg(s.mant)}</span></div>
+        <div class="row"><span>Otros gastos</span><span>${neg(s.otros)}</span></div>
+        <div class="row"><span>Devueltos / Recogidas</span><span>${num(s.dev)} / ${num(s.rec)}</span></div>
+        ${exito!==null?`<div class="row"><span>% entregados</span><span>${exito}%</span></div>`:''}
+        ${s.km?`<div class="row"><span>Km / combustible por km</span><span>${num(s.km)} km · ${eur(s.fuel/s.km)}</span></div>`:''}
+        <div class="row tot"><span>Beneficio</span><span class="${s.ben>=0?'pos':'neg'}">${eur(s.ben)}</span></div>
+      </div></div>`;
+  }).join('');
+  $('#totalCard').innerHTML=`<h2>Total empresa · ${$('#mLabel').textContent}</h2>
+    <div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
+      <div class="kpi"><small>Paquetes</small><b>${num(all.paq)}</b></div>
+      <div class="kpi"><small>Ingresos</small><b>${eur(all.ing)}</b></div>
+      <div class="kpi"><small>Gastos</small><b>${eur(all.gas)}</b></div>
+      <div class="kpi"><small>Beneficio</small><b class="${all.ben>=0?'pos':'neg'}">${eur(all.ben)}</b></div>
+    </div>`;
+
+  // barras 12 meses
+  const months=[]; for(let i=0;i<12;i++){const d=new Date(y0.getFullYear(),y0.getMonth()+i,1);months.push(ymd(d))}
+  const val=(rid,m)=>{const x=resumen.find(z=>z.ruta_id===rid&&z.mes===m);return x?x.paquetes:0};
+  const max=Math.max(1,...months.flatMap(m=>rutas.map(r=>val(r.id,m))));
+  $('#legend').innerHTML=rutas.map(r=>`<span><span class="dot" style="background:${colorOf(r)}"></span> ${esc(r.nombre)}</span>`).join('');
+  $('#bars').innerHTML=months.map(m=>`<div class="bar" title="${m.slice(0,7)}">${rutas.map(r=>`<i style="height:${val(r.id,m)/max*100}%;background:${colorOf(r)}" title="${esc(r.nombre)}: ${val(r.id,m)}"></i>`).join('')}<em>${new Date(m+'T00:00').toLocaleDateString('es-ES',{month:'short'}).replace('.','')}</em></div>`).join('');
+
+  // tabla histórico
+  const rows=resumen.filter(x=>x.mes);
+  $('#hist').innerHTML=`<tr><th>Mes</th><th>Ruta</th><th>Paquetes</th><th>Días</th><th>Ingresos</th><th>Combust.</th><th>Mant.</th><th>Otros</th><th>Beneficio</th></tr>`+
+    (rows.length?rows.map(x=>`<tr><td>${new Date(x.mes+'T00:00').toLocaleDateString('es-ES',{month:'short',year:'2-digit'})}</td><td style="text-align:left">${esc(x.ruta)}</td><td>${num(x.paquetes)}</td><td>${num(x.dias)}</td><td>${eur(x.ingresos)}</td><td>${eur(x.combustible)}</td><td>${eur(x.mantenimiento)}</td><td>${eur(x.otros)}</td><td class="${x.beneficio>=0?'pos':'neg'}">${eur(x.beneficio)}</td></tr>`).join('')
+     :`<tr><td colspan="9" class="empty">Aún no hay datos</td></tr>`);
+}
+$('#btnCsv').onclick=()=>{
+  const h=['mes','ruta','encargado','paquetes','devueltos','recogidas','dias','ingresos','combustible','mantenimiento','otros','gastos','beneficio','coste_por_paquete','litros','km'];
+  const lines=[h.join(';')].concat(resumen.map(x=>h.map(k=>{let v=x[k]??'';if(typeof v==='number')v=String(v).replace('.',',');return `"${String(v).replace(/"/g,'""')}"`}).join(';')));
+  const blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='reparto_historico.csv';a.click();
+};
+
+// ---------- PAQUETES ----------
+let pTipo='dia';
+$('#pTipo').onclick=e=>{const b=e.target.closest('button');if(!b)return;pTipo=b.dataset.v;syncPaqForm()};
+$('#pRuta').onchange=syncPaqForm;
+function syncPaqForm(){
+  document.querySelectorAll('#pTipo button').forEach(b=>b.classList.toggle('on',b.dataset.v===pTipo));
+  $('#pFechaBox').classList.toggle('hidden',pTipo!=='dia');
+  $('#pMesBox').classList.toggle('hidden',pTipo!=='mes');
+  $('#pDiasBox').classList.toggle('hidden',pTipo!=='mes');
+  $('#pKmBox').classList.toggle('hidden',pTipo==='mes');
+  const r=rutaById($('#pRuta').value);
+  $('#pHint').textContent = r.modo_pago==='dia'
+    ? `${r.nombre||''} se cobra por día${r.tarifa?` (${eur(r.tarifa)})`:''}: los paquetes son solo para control.`
+    : r.nombre ? `${r.nombre} se cobra por paquete${r.tarifa?` (${eur(r.tarifa)})`:''}.` : '';
+}
+$('#fPaq').onsubmit=async e=>{
+  e.preventDefault();
+  const r=rutaById($('#pRuta').value), id=$('#pId').value;
+  const row={ruta_id:r.id,tipo:pTipo,
+    fecha: pTipo==='dia'?$('#pFecha').value:$('#pMes').value+'-01',
+    paquetes:+$('#pPaq').value||0, devueltos:+$('#pDev').value||0, recogidas:+$('#pRec').value||0,
+    dias: pTipo==='dia'?1:(+$('#pDias').value||0),
+    km: pTipo==='dia'&&$('#pKm').value!==''?+$('#pKm').value:null,
+    notas:$('#pNotas').value.trim()||null};
+  if(!row.fecha) return toast('Pon la fecha');
+  if(!id){
+    row.tarifa=r.tarifa;
+    if(pTipo==='dia' && regs.some(x=>x.ruta_id===r.id&&x.tipo==='dia'&&x.fecha===row.fecha) && !confirm('Ya hay un registro de '+r.nombre+' para ese día. ¿Añadir otro igualmente?')) return;
+  }
+  const q= id? sb.from('reparto_registros').update(row).eq('id',id) : sb.from('reparto_registros').insert(row);
+  const {error}=await q; if(error) return fail(error);
+  toast('Guardado ✓'); resetPaq(); loadMonth();
+};
+function resetPaq(){$('#pId').value='';$('#fPaq').reset();$('#pDev').value=0;$('#pRec').value=0;$('#pDias').value=1;$('#pTitle').textContent='Apuntar paquetes';$('#pCancel').classList.add('hidden');pTipo='dia';syncPaqForm();$('#pFecha').value=ymd(new Date())}
+$('#pCancel').onclick=()=>{resetPaq();loadMonth()};
+function renderPaq(){
+  $('#pList').innerHTML=regs.length?regs.map(x=>{const r=rutaById(x.ruta_id);
+    const f=x.tipo==='mes'?'Total del mes':new Date(x.fecha+'T00:00').toLocaleDateString('es-ES',{weekday:'short',day:'numeric'});
+    return `<div class="it"><span class="dot" style="background:${colorOf(r)}"></span>
+      <div class="m"><div class="t">${esc(r.nombre)} <span class="tag">${f}</span></div>
+      <div class="sub">${x.devueltos?x.devueltos+' devueltos · ':''}${x.recogidas?x.recogidas+' recogidas · ':''}${x.tipo==='mes'?x.dias+' días · ':''}${x.km?x.km+' km · ':''}${esc(x.notas||'')}</div></div>
+      <div class="v">${num(x.paquetes)} 📦</div>
+      <button class="ic" onclick="editPaq('${x.id}')" aria-label="Editar">✏️</button>
+      <button class="ic" onclick="delRow('reparto_registros','${x.id}')" aria-label="Borrar">🗑️</button></div>`}).join('')
+    :'<div class="empty">Sin registros este mes</div>';
+}
+window.editPaq=id=>{const x=regs.find(z=>z.id===id);if(!x)return;
+  $('#pId').value=id;$('#pRuta').value=x.ruta_id;pTipo=x.tipo;syncPaqForm();
+  $('#pFecha').value=x.fecha;$('#pMes').value=x.fecha.slice(0,7);$('#pPaq').value=x.paquetes;$('#pDev').value=x.devueltos;$('#pRec').value=x.recogidas;$('#pDias').value=x.dias;$('#pKm').value=x.km??'';$('#pNotas').value=x.notas||'';
+  $('#pTitle').textContent='Editar registro';$('#pCancel').classList.remove('hidden');window.scrollTo(0,0)};
+window.delRow=async(t,id)=>{if(!confirm('¿Borrar este registro?'))return;const {error}=await sb.from(t).delete().eq('id',id);if(error)return fail(error);toast('Borrado');loadMonth()};
+
+// ---------- GASTOS ----------
+$('#gCat').onchange=()=>$('#gFuelBox').classList.toggle('hidden',$('#gCat').value!=='combustible');
+$('#fGas').onsubmit=async e=>{
+  e.preventDefault(); const id=$('#gId').value;
+  const row={ruta_id:$('#gRuta').value,fecha:$('#gFecha').value,categoria:$('#gCat').value,importe:+$('#gImp').value||0,
+    litros:$('#gCat').value==='combustible'&&$('#gLit').value!==''?+$('#gLit').value:null,
+    km:$('#gCat').value==='combustible'&&$('#gKm').value!==''?+$('#gKm').value:null,
+    concepto:$('#gCon').value.trim()||null};
+  const q= id? sb.from('reparto_gastos').update(row).eq('id',id) : sb.from('reparto_gastos').insert(row);
+  const {error}=await q; if(error) return fail(error);
+  toast('Gasto guardado ✓'); resetGas(); loadMonth();
+};
+function resetGas(){const r=$('#gRuta').value;$('#gId').value='';$('#fGas').reset();$('#gRuta').value=r;$('#gTitle').textContent='Apuntar gasto';$('#gCancel').classList.add('hidden');$('#gFuelBox').classList.remove('hidden');$('#gFecha').value=ymd(new Date())}
+$('#gCancel').onclick=()=>{resetGas();loadMonth()};
+function renderGas(){
+  $('#gList').innerHTML=gastos.length?gastos.map(x=>{const r=rutaById(x.ruta_id);
+    return `<div class="it"><span class="dot" style="background:${colorOf(r)}"></span>
+      <div class="m"><div class="t">${CAT[x.categoria]||x.categoria} <span class="tag">${esc(r.nombre)}</span></div>
+      <div class="sub">${new Date(x.fecha+'T00:00').toLocaleDateString('es-ES',{day:'numeric',month:'short'})}${x.litros?' · '+num(x.litros)+' L':''}${x.km?' · '+num(x.km)+' km':''}${x.concepto?' · '+esc(x.concepto):''}</div></div>
+      <div class="v">${eur(x.importe)}</div>
+      <button class="ic" onclick="editGas('${x.id}')" aria-label="Editar">✏️</button>
+      <button class="ic" onclick="delRow('reparto_gastos','${x.id}')" aria-label="Borrar">🗑️</button></div>`}).join('')
+    :'<div class="empty">Sin gastos este mes</div>';
+}
+window.editGas=id=>{const x=gastos.find(z=>z.id===id);if(!x)return;
+  $('#gId').value=id;$('#gRuta').value=x.ruta_id;$('#gFecha').value=x.fecha;$('#gCat').value=x.categoria;$('#gImp').value=x.importe;$('#gLit').value=x.litros??'';$('#gKm').value=x.km??'';$('#gCon').value=x.concepto||'';
+  $('#gFuelBox').classList.toggle('hidden',x.categoria!=='combustible');
+  $('#gTitle').textContent='Editar gasto';$('#gCancel').classList.remove('hidden');window.scrollTo(0,0)};
+
+// ---------- RUTAS ----------
+function renderRutas(){
+  $('#rutaForms').innerHTML=rutas.map(r=>`<form class="card" data-id="${r.id}">
+    <h2><span class="dot" style="background:${colorOf(r)}"></span>${esc(r.nombre)}</h2>
+    <div class="sub">Cliente: ${esc(r.cliente)}</div>
+    <label>Encargado/a</label><input name="encargado" value="${esc(r.encargado||'')}">
+    <label>Zona</label><input name="zona" value="${esc(r.zona||'')}">
+    <div class="two">
+      <div><label>Cómo paga On Time</label><select name="modo_pago">
+        <option value="paquete" ${r.modo_pago==='paquete'?'selected':''}>Por paquete</option>
+        <option value="dia" ${r.modo_pago==='dia'?'selected':''}>Fijo por día</option></select></div>
+      <div><label>Tarifa (€)</label><input name="tarifa" type="number" step="0.01" min="0" inputmode="decimal" value="${r.tarifa}"></div>
+    </div>
+    <div class="hint">Al cambiar la tarifa, se aplica a los registros nuevos y a los que aún no tenían tarifa (0 €).</div>
+    <button class="btn">Guardar ruta</button></form>`).join('');
+  document.querySelectorAll('#rutaForms form').forEach(f=>f.onsubmit=async e=>{
+    e.preventDefault(); const fd=new FormData(f), id=f.dataset.id;
+    const row={encargado:fd.get('encargado'),zona:fd.get('zona'),modo_pago:fd.get('modo_pago'),tarifa:+fd.get('tarifa')||0};
+    const {error}=await sb.from('reparto_rutas').update(row).eq('id',id); if(error) return fail(error);
+    if(row.tarifa>0){const {error:e2}=await sb.from('reparto_registros').update({tarifa:row.tarifa}).eq('ruta_id',id).eq('tarifa',0); if(e2) return fail(e2);}
+    toast('Ruta guardada ✓'); await loadRutas(); loadMonth();
+  });
+}
+
+if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js');
+init();
+</script>
+</body>
+</html>
