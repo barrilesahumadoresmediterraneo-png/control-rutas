@@ -312,8 +312,11 @@ function renderFactura(){
   let h=`<h2>🧾 Factura del mes a On Time</h2><div class="sub">Se hace a nombre de Mulva Valencia SL, con IVA 21 % y retención de IRPF 1 %.</div>`;
   if(f && f.estado!=='anulada'){
     h+= f.estado==='emitida'
-      ? `<div class="rows"><div class="row"><span>Factura</span><span><b>${esc(f.numero)}</b> · emitida</span></div><div class="row tot"><span>A cobrar</span><span>${eur(f.a_pagar)}</span></div></div>`
+      ? `<div class="rows"><div class="row"><span>Factura</span><span><b>${esc(f.numero)}</b> · emitida</span></div><div class="row tot"><span>A cobrar</span><span>${eur(f.a_pagar)}</span></div></div>
+         <button class="btn sec" id="fRedo" data-modo="otro">Generar otro borrador de ${esc(mes.toLowerCase())}</button>
+         <div class="hint">La factura emitida se queda como está; si hay que rectificarla, hazlo en Facturación.</div>`
       : `<div class="rows"><div class="row"><span>Estado</span><span>En borrador en Facturación</span></div><div class="row tot"><span>A cobrar</span><span>${eur(f.a_pagar)}</span></div></div>
+         <button class="btn sec" id="fRedo" data-modo="rehacer">Rehacer el borrador con los datos actuales</button>
          <div class="hint">Revísala y emítela en tu programa de Facturación. <a href="#" id="fRef">Actualizar</a></div>`;
   } else if(futuro || !base){
     h+=`<div class="empty">${futuro?'Este mes aún no ha empezado.':'No hay paquetes ni días apuntados en '+esc(mes)+'.'}</div>`;
@@ -327,6 +330,7 @@ function renderFactura(){
   }
   $('#factCard').innerHTML=h;
   if($('#fMake')) $('#fMake').onclick=hacerFacturaMes;
+  if($('#fRedo')) $('#fRedo').onclick=rehacerFacturaMes;
   if($('#fRef')) $('#fRef').onclick=e=>{e.preventDefault();loadFacturas().then(()=>toast('Actualizado'))};
 }
 async function hacerFacturaMes(){
@@ -337,6 +341,18 @@ async function hacerFacturaMes(){
     const r=await api({action:'facturaReparto',mes:mesKey()}); facturas[r.factura.mes]=r.factura; renderFactura();
     toast(r.factura.existente?'Este mes ya tenía factura':'Borrador creado en Facturación ✓');
   }catch(e){ b.disabled=false; b.textContent='Hacer la factura de '+mes.toLowerCase(); alert('No se pudo hacer la factura.\n\n'+e.message) }
+}
+async function rehacerFacturaMes(){
+  const mes=$('#mLabel').textContent, b=$('#fRedo'), otro=b.dataset.modo==='otro', txt=b.textContent;
+  const msg = otro
+    ? '¿Generar otro borrador de '+mes.toLowerCase()+'?\n\nLa factura ya emitida NO se toca. Se creará un borrador nuevo con los datos que tienes ahora apuntados en la app.'
+    : '¿Rehacer el borrador de '+mes.toLowerCase()+'?\n\nSe borrará el borrador actual en Facturación y se creará otro con los datos que tienes ahora apuntados en la app.';
+  if(!confirm(msg)) return;
+  b.disabled=true; b.textContent='Creando borrador…';
+  try{
+    const r=await api({action:'facturaReparto',mes:mesKey(),rehacer:true}); facturas[r.factura.mes]=r.factura; renderFactura();
+    toast('Nuevo borrador creado en Facturación ✓');
+  }catch(e){ b.disabled=false; b.textContent=txt; alert('No se pudo crear el borrador.\n\n'+e.message) }
 }
 
 $('#mPrev').onclick=()=>{cur.setMonth(cur.getMonth()-1);loadMonth()};
