@@ -123,6 +123,7 @@ th{color:var(--muted);font-weight:600;font-size:12px}
   <div id="t-resumen" class="tab">
     <div class="grid g2" id="routeCards"></div>
     <div class="card" style="margin-top:14px" id="totalCard"></div>
+    <div class="card" style="margin-top:14px" id="factCard"></div>
     <div class="card" style="margin-top:14px">
       <h2>Paquetes últimos 12 meses</h2>
       <div class="legend" id="legend"></div>
@@ -280,13 +281,64 @@ async function loadMonth(){
   ]);
   for(const r of [r1,r2,r3]) if(r.error) return fail(r.error);
   regs=r1.data; gastos=r2.data; resumen=r3.data;
-  renderResumen(y0); renderPaq(); renderGas();
+  renderResumen(y0); renderPaq(); renderGas(); renderFactura(); loadFacturas();
   // defaults de fecha dentro del mes elegido
   const today=new Date(); const inMonth=today.getFullYear()===cur.getFullYear()&&today.getMonth()===cur.getMonth();
   const def=inMonth?ymd(today):a;
   if(!$('#pId').value){$('#pFecha').value=def;$('#pMes').value=a.slice(0,7)}
   if(!$('#gId').value){$('#gFecha').value=def}
 }
+// ---------- FACTURA DEL MES (programa de Facturación) ----------
+const API = SUPABASE_URL + '/functions/v1/api';
+let facturas = {};   // 'YYYY-MM' -> estado de su factura en Facturación
+async function api(body){
+  const {data:{session}} = await sb.auth.getSession();
+  if(!session) throw new Error('Vuelve a iniciar sesión');
+  const r = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPABASE_KEY,Authorization:'Bearer '+session.access_token},body:JSON.stringify(body)});
+  let j; try{ j=await r.json() }catch(e){ throw new Error('El servidor no responde') }
+  if(!j.ok) throw new Error(j.error||'Error del servidor'); return j;
+}
+const mesKey = () => monthStart().slice(0,7);
+async function loadFacturas(){
+  const ks=[...new Set(resumen.filter(x=>x.mes).map(x=>x.mes.slice(0,7)).concat(mesKey()))];
+  try{ const r=await api({action:'facturaRepartoEstado',meses:ks}); facturas={}; (r.facturas||[]).forEach(f=>facturas[f.mes]=f); }catch(e){ console.warn(e) }
+  renderFactura();
+}
+function renderFactura(){
+  const k=mesKey(), f=facturas[k], mes=$('#mLabel').textContent;
+  const futuro = monthStart() > ymd(new Date());
+  const ing = rutas.reduce((a,r)=>a+stats(r.id).ing,0);
+  const base=Math.round(ing*100)/100, iva=Math.round(base*21)/100, irpf=Math.round(base)/100;
+  let h=`<h2>🧾 Factura del mes a On Time</h2><div class="sub">Se hace a nombre de Mulva Valencia SL, con IVA 21 % y retención de IRPF 1 %.</div>`;
+  if(f && f.estado!=='anulada'){
+    h+= f.estado==='emitida'
+      ? `<div class="rows"><div class="row"><span>Factura</span><span><b>${esc(f.numero)}</b> · emitida</span></div><div class="row tot"><span>A cobrar</span><span>${eur(f.a_pagar)}</span></div></div>`
+      : `<div class="rows"><div class="row"><span>Estado</span><span>En borrador en Facturación</span></div><div class="row tot"><span>A cobrar</span><span>${eur(f.a_pagar)}</span></div></div>
+         <div class="hint">Revísala y emítela en tu programa de Facturación. <a href="#" id="fRef">Actualizar</a></div>`;
+  } else if(futuro || !base){
+    h+=`<div class="empty">${futuro?'Este mes aún no ha empezado.':'No hay paquetes ni días apuntados en '+esc(mes)+'.'}</div>`;
+  } else {
+    h+=`<div class="rows"><div class="row"><span>Base imponible</span><span>${eur(base)}</span></div>
+        <div class="row"><span>IVA 21 %</span><span>${eur(iva)}</span></div>
+        <div class="row"><span>Retención IRPF 1 %</span><span>${neg(irpf)}</span></div>
+        <div class="row tot"><span>A cobrar</span><span>${eur(base+iva-irpf)}</span></div></div>
+        <button class="btn" id="fMake">Hacer la factura de ${esc(mes.toLowerCase())}</button>
+        <div class="hint">Se crea como borrador en Facturación; allí la revisas y la emites. Un mes solo se puede facturar una vez.</div>`;
+  }
+  $('#factCard').innerHTML=h;
+  if($('#fMake')) $('#fMake').onclick=hacerFacturaMes;
+  if($('#fRef')) $('#fRef').onclick=e=>{e.preventDefault();loadFacturas().then(()=>toast('Actualizado'))};
+}
+async function hacerFacturaMes(){
+  const mes=$('#mLabel').textContent;
+  if(!confirm('¿Hacer la factura de '+mes.toLowerCase()+' a Mulva Valencia SL (On Time)?\n\nSe creará como BORRADOR en Facturación para que la revises y la emitas.')) return;
+  const b=$('#fMake'); b.disabled=true; b.textContent='Creando factura…';
+  try{
+    const r=await api({action:'facturaReparto',mes:mesKey()}); facturas[r.factura.mes]=r.factura; renderFactura();
+    toast(r.factura.existente?'Este mes ya tenía factura':'Borrador creado en Facturación ✓');
+  }catch(e){ b.disabled=false; b.textContent='Hacer la factura de '+mes.toLowerCase(); alert('No se pudo hacer la factura.\n\n'+e.message) }
+}
+
 $('#mPrev').onclick=()=>{cur.setMonth(cur.getMonth()-1);loadMonth()};
 $('#mNext').onclick=()=>{cur.setMonth(cur.getMonth()+1);loadMonth()};
 
